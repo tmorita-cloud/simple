@@ -2,155 +2,582 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>SnapVault</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: #333;
-      line-height: 1.6;
+      background: #0d0d0d;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     header {
       background: #1a1a2e;
-      color: #fff;
-      padding: 1rem 2rem;
+      padding: 0.75rem 1.25rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
 
     header .logo {
-      font-size: 1.5rem;
+      font-size: 1.3rem;
       font-weight: 700;
+      letter-spacing: 0.5px;
     }
 
-    header nav a {
+    header nav button {
+      background: none;
+      border: 2px solid #555;
       color: #ccc;
-      text-decoration: none;
-      margin-left: 1.5rem;
-      transition: color 0.2s;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
     }
 
-    header nav a:hover {
-      color: #fff;
+    header nav button:hover { border-color: #e94560; color: #fff; }
+    header nav button.active { border-color: #e94560; color: #e94560; }
+
+    /* ── Camera View ── */
+    #camera-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
     }
 
-    .hero {
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
-      color: #fff;
-      text-align: center;
-      padding: 6rem 2rem;
+    #camera-view .video-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #111;
+      aspect-ratio: 3/4;
     }
 
-    .hero h1 {
-      font-size: 3rem;
-      margin-bottom: 1rem;
+    #camera-view video,
+    #camera-view canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
-    .hero p {
-      font-size: 1.25rem;
-      color: #b0b0c0;
-      max-width: 600px;
-      margin: 0 auto 2rem;
+    #camera-view canvas { display: none; }
+
+    #camera-view .flash {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.08s;
     }
 
-    .hero .cta {
-      display: inline-block;
+    #camera-view .flash.active { opacity: 0.8; transition: none; }
+
+    #camera-view .controls {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .shutter-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 4px solid #fff;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.1s;
+    }
+
+    .shutter-btn::after {
+      content: "";
+      position: absolute;
+      inset: 5px;
+      border-radius: 50%;
       background: #e94560;
+      transition: transform 0.1s;
+    }
+
+    .shutter-btn:active { transform: scale(0.92); }
+    .shutter-btn:active::after { transform: scale(0.9); }
+
+    .switch-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid #555;
+      background: rgba(255,255,255,0.1);
       color: #fff;
-      padding: 0.75rem 2rem;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #camera-error {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      color: #999;
+    }
+
+    #camera-error h2 { color: #e94560; margin-bottom: 0.5rem; }
+
+    /* ── Gallery View ── */
+    #gallery-view {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      padding: 1rem;
+    }
+
+    .gallery-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 0 0.25rem;
+    }
+
+    .gallery-header h2 { font-size: 1.1rem; font-weight: 600; }
+    .gallery-header .count { color: #888; font-size: 0.9rem; }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 4px;
+    }
+
+    .gallery-grid .thumb {
+      aspect-ratio: 1;
+      overflow: hidden;
       border-radius: 4px;
-      text-decoration: none;
-      font-weight: 600;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .gallery-grid .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.2s;
+    }
+
+    .gallery-grid .thumb:hover img { transform: scale(1.05); }
+
+    .gallery-grid .thumb .date-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.7));
+      padding: 1.5rem 0.4rem 0.3rem;
+      font-size: 0.7rem;
+      color: #ccc;
+    }
+
+    .empty-gallery {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      gap: 0.75rem;
+      padding: 4rem 1rem;
+    }
+
+    .empty-gallery .icon { font-size: 3rem; }
+
+    /* ── Lightbox ── */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0,0,0,0.95);
+      flex-direction: column;
+    }
+
+    #lightbox.open { display: flex; }
+
+    #lightbox .lb-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+    }
+
+    #lightbox .lb-header .lb-date { font-size: 0.85rem; color: #aaa; }
+
+    #lightbox .lb-header button {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+    }
+
+    #lightbox .lb-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 0.5rem;
+    }
+
+    #lightbox .lb-body img {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    #lightbox .lb-footer {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    #lightbox .lb-footer button {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid #444;
+      color: #fff;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
       transition: background 0.2s;
     }
 
-    .hero .cta:hover {
-      background: #c73650;
-    }
+    #lightbox .lb-footer button:hover { background: rgba(255,255,255,0.2); }
+    #lightbox .lb-footer button.delete-btn { border-color: #e94560; color: #e94560; }
+    #lightbox .lb-footer button.delete-btn:hover { background: rgba(233,69,96,0.2); }
 
-    .features {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 2rem;
-      padding: 4rem 2rem;
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-
-    .feature {
-      flex: 1 1 260px;
-      max-width: 300px;
-      text-align: center;
-      padding: 1.5rem;
-    }
-
-    .feature .icon {
-      font-size: 2.5rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .feature h3 {
-      margin-bottom: 0.5rem;
-    }
-
-    .feature p {
-      color: #666;
-      font-size: 0.95rem;
-    }
-
-    footer {
-      background: #1a1a2e;
-      color: #888;
-      text-align: center;
-      padding: 1.5rem;
-      font-size: 0.9rem;
+    @media (min-width: 600px) {
+      .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
     }
   </style>
 </head>
 <body>
+
   <header>
-    <div class="logo">SimpleSite</div>
+    <div class="logo">SnapVault</div>
     <nav>
-      <a href="#features">Features</a>
-      <a href="#contact">Contact</a>
+      <button id="tab-camera" class="active" onclick="showView('camera')">Camera</button>
+      <button id="tab-gallery" onclick="showView('gallery')">Gallery</button>
     </nav>
   </header>
 
-  <section class="hero">
-    <h1>Hello, Tim and Tina!</h1>
-    <p>A clean, simple one-page website to get you started.</p>
-    <a href="#features" class="cta">Learn More</a>
-  </section>
+  <!-- Camera -->
+  <div id="camera-view">
+    <div class="video-wrapper">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
+      <div class="flash" id="flash"></div>
+    </div>
+    <div class="controls">
+      <button class="switch-btn" id="switch-cam" title="Switch camera">&#x21bb;</button>
+      <button class="shutter-btn" id="shutter" title="Take picture"></button>
+      <div style="width:44px"></div> <!-- spacer for centering -->
+    </div>
+  </div>
 
-  <section class="features" id="features">
-    <div class="feature">
-      <div class="icon">&#9889;</div>
-      <h3>Fast</h3>
-      <p>Lightweight and quick to load with zero dependencies.</p>
-    </div>
-    <div class="feature">
-      <div class="icon">&#127912;</div>
-      <h3>Clean Design</h3>
-      <p>Modern, minimal styling that looks great on any device.</p>
-    </div>
-    <div class="feature">
-      <div class="icon">&#128736;</div>
-      <h3>Easy to Customize</h3>
-      <p>Simple HTML and CSS that you can modify to fit your needs.</p>
-    </div>
-  </section>
+  <div id="camera-error" style="display:none">
+    <h2>Camera Unavailable</h2>
+    <p>Could not access the camera. Please allow camera permissions or try a different browser.</p>
+    <p style="margin-top:1rem;font-size:0.85rem;">You can still browse your gallery using the Gallery tab.</p>
+  </div>
 
-  <footer id="contact">
-    <p>&copy; 2026 SimpleSite. All rights reserved.</p>
-  </footer>
+  <!-- Gallery -->
+  <div id="gallery-view">
+    <div class="gallery-header">
+      <h2>Your Photos</h2>
+      <span class="count" id="photo-count"></span>
+    </div>
+    <div class="gallery-grid" id="gallery-grid"></div>
+    <div class="empty-gallery" id="empty-gallery" style="display:none">
+      <div class="icon">&#128247;</div>
+      <p>No photos yet</p>
+      <p style="font-size:0.85rem;">Switch to Camera and snap your first picture!</p>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox">
+    <div class="lb-header">
+      <span class="lb-date" id="lb-date"></span>
+      <button onclick="closeLightbox()" title="Close">&#x2715;</button>
+    </div>
+    <div class="lb-body">
+      <img id="lb-img" src="" alt="Photo">
+    </div>
+    <div class="lb-footer">
+      <button onclick="downloadPhoto()" title="Download">&#11015; Save</button>
+      <button class="delete-btn" onclick="deletePhoto()" title="Delete">&#128465; Delete</button>
+    </div>
+  </div>
+
+<script>
+  // ── IndexedDB Setup ──
+  const DB_NAME = "SnapVaultDB";
+  const DB_VERSION = 1;
+  const STORE_NAME = "photos";
+  let db = null;
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains(STORE_NAME)) {
+          const store = d.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+          store.createIndex("timestamp", "timestamp", { unique: false });
+        }
+      };
+      req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  function savePhoto(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      const record = { dataUrl, timestamp: Date.now() };
+      const req = store.add(record);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  function getAllPhotos() {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const idx = store.index("timestamp");
+      const req = idx.openCursor(null, "prev"); // newest first
+      const results = [];
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          results.push(cursor.value);
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  function deletePhotoById(id) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  // ── Camera ──
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const flash = document.getElementById("flash");
+  let stream = null;
+  let facingMode = "environment";
+
+  async function startCamera() {
+    try {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 1920 } },
+        audio: false
+      });
+      video.srcObject = stream;
+      document.getElementById("camera-view").style.display = "flex";
+      document.getElementById("camera-error").style.display = "none";
+    } catch (err) {
+      console.error("Camera error:", err);
+      document.getElementById("camera-view").style.display = "none";
+      document.getElementById("camera-error").style.display = "block";
+    }
+  }
+
+  document.getElementById("switch-cam").addEventListener("click", () => {
+    facingMode = facingMode === "environment" ? "user" : "environment";
+    startCamera();
+  });
+
+  document.getElementById("shutter").addEventListener("click", async () => {
+    if (!stream) return;
+
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    // Flash effect
+    flash.classList.add("active");
+    setTimeout(() => flash.classList.remove("active"), 150);
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    await savePhoto(dataUrl);
+
+    // Update gallery count badge
+    updateGalleryCount();
+  });
+
+  // ── Views ──
+  function showView(view) {
+    const cameraView = document.getElementById("camera-view");
+    const cameraError = document.getElementById("camera-error");
+    const galleryView = document.getElementById("gallery-view");
+    const tabCamera = document.getElementById("tab-camera");
+    const tabGallery = document.getElementById("tab-gallery");
+
+    if (view === "camera") {
+      if (stream) {
+        cameraView.style.display = "flex";
+        cameraError.style.display = "none";
+      } else {
+        cameraView.style.display = "none";
+        cameraError.style.display = "block";
+      }
+      galleryView.style.display = "none";
+      tabCamera.classList.add("active");
+      tabGallery.classList.remove("active");
+    } else {
+      cameraView.style.display = "none";
+      cameraError.style.display = "none";
+      galleryView.style.display = "flex";
+      tabCamera.classList.remove("active");
+      tabGallery.classList.add("active");
+      loadGallery();
+    }
+  }
+
+  // ── Gallery ──
+  async function loadGallery() {
+    const photos = await getAllPhotos();
+    const grid = document.getElementById("gallery-grid");
+    const empty = document.getElementById("empty-gallery");
+    const count = document.getElementById("photo-count");
+
+    count.textContent = photos.length + " photo" + (photos.length !== 1 ? "s" : "");
+
+    if (photos.length === 0) {
+      grid.style.display = "none";
+      empty.style.display = "flex";
+      return;
+    }
+
+    grid.style.display = "grid";
+    empty.style.display = "none";
+    grid.innerHTML = "";
+
+    photos.forEach(photo => {
+      const div = document.createElement("div");
+      div.className = "thumb";
+      div.onclick = () => openLightbox(photo);
+
+      const img = document.createElement("img");
+      img.src = photo.dataUrl;
+      img.alt = "Photo";
+      img.loading = "lazy";
+
+      const label = document.createElement("div");
+      label.className = "date-label";
+      label.textContent = formatDate(photo.timestamp);
+
+      div.appendChild(img);
+      div.appendChild(label);
+      grid.appendChild(div);
+    });
+  }
+
+  async function updateGalleryCount() {
+    const photos = await getAllPhotos();
+    document.getElementById("photo-count").textContent =
+      photos.length + " photo" + (photos.length !== 1 ? "s" : "");
+  }
+
+  // ── Lightbox ──
+  let currentPhoto = null;
+
+  function openLightbox(photo) {
+    currentPhoto = photo;
+    document.getElementById("lb-img").src = photo.dataUrl;
+    document.getElementById("lb-date").textContent = formatDate(photo.timestamp);
+    document.getElementById("lightbox").classList.add("open");
+  }
+
+  function closeLightbox() {
+    document.getElementById("lightbox").classList.remove("open");
+    currentPhoto = null;
+  }
+
+  function downloadPhoto() {
+    if (!currentPhoto) return;
+    const a = document.createElement("a");
+    a.href = currentPhoto.dataUrl;
+    a.download = "snapvault_" + currentPhoto.timestamp + ".jpg";
+    a.click();
+  }
+
+  async function deletePhoto() {
+    if (!currentPhoto) return;
+    if (!confirm("Delete this photo?")) return;
+    await deletePhotoById(currentPhoto.id);
+    closeLightbox();
+    loadGallery();
+  }
+
+  // close lightbox on Escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeLightbox();
+  });
+
+  // ── Helpers ──
+  function formatDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit"
+    });
+  }
+
+  // ── Init ──
+  (async () => {
+    await openDB();
+    startCamera();
+  })();
+</script>
+
 </body>
 </html>
